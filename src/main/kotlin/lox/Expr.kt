@@ -1,7 +1,7 @@
 package lox
 
 abstract class Expr {
-    internal interface Visitor<out R> {
+    interface Visitor<out R> {
 //        fun visitAssignExpr(expr: Assign): R
         fun visitBinaryExpr(expr: Binary): R
 //        fun visitCallExpr(expr: Call): R
@@ -16,77 +16,77 @@ abstract class Expr {
 //        fun visitVariableExpr(expr: Variable): R
     }
 
-//    internal class Assign(val name: Token, val value: Expr) : Expr() {
+//    class Assign(val name: Token, val value: Expr) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitAssignExpr(this)
 //        }
 //    }
 
-    internal class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr() {
+    class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitBinaryExpr(this)
         }
     }
 
-//    internal class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>) : Expr() {
+//    class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitCallExpr(this)
 //        }
 //    }
 
-//    internal class Get(val `object`: Expr, val name: Token) : Expr() {
+//    class Get(val `object`: Expr, val name: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitGetExpr(this)
 //        }
 //    }
 
-    internal class Grouping(val expression: Expr) : Expr() {
+    class Grouping(val expression: Expr) : Expr() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitGroupingExpr(this)
         }
     }
 
-    internal class Literal(val value: Any?) : Expr() {
+    class Literal(val value: Any?) : Expr() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitLiteralExpr(this)
         }
     }
 
-//    internal class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr() {
+//    class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitLogicalExpr(this)
 //        }
 //    }
 
-//    internal class Set(val `object`: Expr, val name: Token, val value: Expr) : Expr() {
+//    class Set(val `object`: Expr, val name: Token, val value: Expr) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitSetExpr(this)
 //        }
 //    }
 //
-//    internal class Super(val keyword: Token, val method: Token) : Expr() {
+//    class Super(val keyword: Token, val method: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitSuperExpr(this)
 //        }
 //    }
 //
-//    internal class This(val keyword: Token) : Expr() {
+//    class This(val keyword: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitThisExpr(this)
 //        }
 //    }
 
-    internal class Unary(val operator: Token, val right: Expr) : Expr() {
+    class Unary(val operator: Token, val right: Expr) : Expr() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitUnaryExpr(this)
         }
     }
 
-//    internal class Variable(val name: Token) : Expr() {
+//    class Variable(val name: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitVariableExpr(this)
 //        }
 //    }
 
-    internal abstract fun <R> accept(visitor: Visitor<R>): R
+    abstract fun <R> accept(visitor: Visitor<R>): R
 }
