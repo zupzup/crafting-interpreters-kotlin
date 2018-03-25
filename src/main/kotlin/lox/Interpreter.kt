@@ -1,17 +1,70 @@
 package lox
 
+import lox.TokenType.*
 
 class RuntimeError(val token: Token, message: String) : RuntimeException(message)
 
-class Interpreter : Expr.Visitor<Any?> {
-    
-    fun interpret(expression: Expr?) {
+class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
+    private var environment = Environment(null)
+
+    fun interpret(statements: List<Stmt?>) {
         try {
-            val value = evaluate(expression)
-            println(stringify(value))
+            for (statement in statements) {
+                execute(statement)
+            }
         } catch (error: RuntimeError) {
             Lox.runtimeError(error)
         }
+
+    }
+
+    private fun execute(stmt: Stmt?) {
+        stmt!!.accept(this)
+    }
+
+    override fun visitBlockStmt(stmt: Stmt.Block) {
+        executeBlock(stmt.statements, Environment(environment))
+        return
+    }
+
+    private fun executeBlock(statements: List<Stmt?>, environment: Environment) {
+        val previous = this.environment
+        try {
+            this.environment = environment
+            for (statement in statements) {
+                execute(statement)
+            }
+        } finally {
+            this.environment = previous
+        }
+    }
+
+    override fun visitAssignExpr(expr: Expr.Assign): Any? {
+        val value = evaluate(expr.value)
+        environment.assign(expr.name, value)
+        return value
+    }
+
+    override fun visitVariableExpr(expr: Expr.Variable): Any? = environment.get(expr.name)
+
+    override fun visitVarStmt(stmt: Stmt.Var) {
+        var value: Any? = null
+        if (stmt.initializer != null) {
+            value = evaluate(stmt.initializer)
+        }
+        environment.define(stmt.name.lexeme, value)
+        return
+    }
+
+    override fun visitExpressionStmt(stmt: Stmt.Expression) {
+        evaluate(stmt.expression)
+        return
+    }
+
+    override fun visitPrintStmt(stmt: Stmt.Print) {
+        val value = evaluate(stmt.expression)
+        println(stringify(value))
+        return
     }
 
     private fun stringify(obj: Any?): String {
@@ -34,19 +87,19 @@ class Interpreter : Expr.Visitor<Any?> {
         val right = evaluate(expr.right)
 
         return when (expr.operator.type) {
-            TokenType.MINUS -> {
+            MINUS -> {
                 checkNumberOperands(expr.operator, left, right)
                 left as Double - right as Double
             }
-            TokenType.SLASH -> {
+            SLASH -> {
                 checkNumberOperands(expr.operator, left, right)
                 left as Double / right as Double
             }
-            TokenType.STAR -> {
+            STAR -> {
                 checkNumberOperands(expr.operator, left, right)
                 left as Double * right as Double
             }
-            TokenType.PLUS -> {
+            PLUS -> {
                 if (left is Double && right is Double) {
                     return left + right
                 }
@@ -57,24 +110,24 @@ class Interpreter : Expr.Visitor<Any?> {
                     throw RuntimeError(expr.operator, "Operands must be numbers.")
                 }
             }
-            TokenType.GREATER -> {
+            GREATER -> {
                 checkNumberOperands(expr.operator, left, right)
                 (left as Double) > (right as Double)
             }
-            TokenType.GREATER_EQUAL -> {
+            GREATER_EQUAL -> {
                 checkNumberOperands(expr.operator, left, right)
                 (left as Double) >= (right as Double)
             }
-            TokenType.LESS -> {
+            LESS -> {
                 checkNumberOperands(expr.operator, left, right)
                 (left as Double) < (right as Double)
             }
-            TokenType.LESS_EQUAL -> {
+            LESS_EQUAL -> {
                 checkNumberOperands(expr.operator, left, right)
                 (left as Double) <= (right as Double)
             }
-            TokenType.BANG_EQUAL -> !isEqual(left, right)
-            TokenType.EQUAL_EQUAL -> isEqual(left, right)
+            BANG_EQUAL -> !isEqual(left, right)
+            EQUAL_EQUAL -> isEqual(left, right)
             else -> null
         }
     }
@@ -87,8 +140,8 @@ class Interpreter : Expr.Visitor<Any?> {
         val right = evaluate(expr.right)
 
         return when (expr.operator.type) {
-            TokenType.MINUS -> -(right as Double)
-            TokenType.BANG -> !isTruthy(right)
+            MINUS -> -(right as Double)
+            BANG -> !isTruthy(right)
             else -> null
         }
     }
@@ -96,17 +149,12 @@ class Interpreter : Expr.Visitor<Any?> {
     private fun evaluate(expr: Expr?): Any? = expr?.accept(this)
 
     private fun isTruthy(obj: Any?): Boolean = if (obj == null) false else obj as? Boolean ?: true
-    
+
     private fun isEqual(a: Any?, b: Any?): Boolean {
         // nil is only equal to nil.
         if (a == null && b == null) return true
         return if (a == null) false else a == b
 
-    }
-
-    private fun checkNumberOperand(operator: Token, operand: Any?) {
-        if (operand is Double) return
-        throw RuntimeError(operator, "Operand must be a number.")
     }
 
     private fun checkNumberOperands(operator: Token,

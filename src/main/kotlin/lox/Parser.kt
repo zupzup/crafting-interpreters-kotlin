@@ -1,28 +1,97 @@
 package lox
 
+import lox.TokenType.*
+import java.util.ArrayList
+import java.time.temporal.TemporalAdjusters.previous
+
+
+
 class Parser(private val tokens: List<Token>) {
 
     private class ParseError : RuntimeException()
 
     private var current = 0
 
-    fun parse(): Expr? {
-        return try {
-            expression()
-        } catch (error: ParseError) {
-            null
+    fun parse(): List<Stmt?> {
+        val statements = ArrayList<Stmt?>()
+        while (!isAtEnd()) {
+            statements.add(declaration())
         }
 
+        return statements
+    }
+
+    private fun declaration(): Stmt? {
+        return try {
+            if (match(VAR)) varDeclaration() else statement()
+        } catch (error: ParseError) {
+            synchronize()
+            null
+        }
+    }
+
+    private fun varDeclaration(): Stmt {
+        val name = consume(IDENTIFIER, "Expect variable name.")
+        var initializer: Expr? = null
+        if (match(EQUAL)) {
+            initializer = expression()
+        }
+        consume(SEMICOLON, "Expect ';' after variable declaration.")
+        return Stmt.Var(name, initializer!!)
+    }
+
+    private fun statement(): Stmt {
+        return when {
+            match(PRINT) -> printStatement()
+            match(LEFT_BRACE) -> Stmt.Block(block())
+            else -> expressionStatement()
+        }
+    }
+
+    private fun block(): List<Stmt?> {
+        val statements = ArrayList<Stmt?>()
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            statements.add(declaration())
+        }
+        consume(RIGHT_BRACE, "Expect '}' after block.")
+        return statements
+    }
+
+    private fun printStatement(): Stmt {
+        val value = expression()
+        consume(SEMICOLON, "Expect ';' after value.")
+        return Stmt.Print(value)
+    }
+
+    private fun expressionStatement(): Stmt {
+        val expr = expression()
+        consume(SEMICOLON, "Expect ';' after expression.")
+        return Stmt.Expression(expr)
     }
 
     private fun expression(): Expr {
-        return equality()
+        return assignment()
+    }
+
+    private fun assignment(): Expr {
+        val expr = equality()
+        if (match(EQUAL)) {
+            val equals = previous()
+            val value = assignment()
+
+            if (expr is Expr.Variable) {
+                val name = expr.name
+                return Expr.Assign(name, value)
+            }
+            error(equals, "Invalid assignment target.")
+        }
+        return expr
     }
 
     private fun equality(): Expr {
         var expr = comparison()
 
-        while (match(TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)) {
+        while (match(BANG_EQUAL, EQUAL_EQUAL)) {
             val operator = previous()
             val right = comparison()
             expr = Expr.Binary(expr, operator, right)
@@ -52,7 +121,7 @@ class Parser(private val tokens: List<Token>) {
     }
 
     private fun isAtEnd(): Boolean {
-        return peek().type === TokenType.EOF
+        return peek().type === EOF
     }
 
     private fun peek(): Token {
@@ -66,7 +135,7 @@ class Parser(private val tokens: List<Token>) {
     private fun comparison(): Expr {
         var expr = addition()
 
-        while (match(TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)) {
+        while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
             val operator = previous()
             val right = addition()
             expr = Expr.Binary(expr, operator, right)
@@ -78,7 +147,7 @@ class Parser(private val tokens: List<Token>) {
     private fun addition(): Expr {
         var expr = multiplication()
 
-        while (match(TokenType.MINUS, TokenType.PLUS)) {
+        while (match(MINUS, PLUS)) {
             val operator = previous()
             val right = multiplication()
             expr = Expr.Binary(expr, operator, right)
@@ -90,7 +159,7 @@ class Parser(private val tokens: List<Token>) {
     private fun multiplication(): Expr {
         var expr = unary()
 
-        while (match(TokenType.SLASH, TokenType.STAR)) {
+        while (match(SLASH, STAR)) {
             val operator = previous()
             val right = unary()
             expr = Expr.Binary(expr, operator, right)
@@ -100,7 +169,7 @@ class Parser(private val tokens: List<Token>) {
     }
 
     private fun unary(): Expr {
-        if (match(TokenType.BANG, TokenType.MINUS)) {
+        if (match(BANG, MINUS)) {
             val operator = previous()
             val right = unary()
             return Expr.Unary(operator, right)
@@ -110,17 +179,21 @@ class Parser(private val tokens: List<Token>) {
     }
 
     private fun primary(): Expr {
-        if (match(TokenType.FALSE)) return Expr.Literal(false)
-        if (match(TokenType.TRUE)) return Expr.Literal(true)
-        if (match(TokenType.NIL)) return Expr.Literal(null)
+        if (match(FALSE)) return Expr.Literal(false)
+        if (match(TRUE)) return Expr.Literal(true)
+        if (match(NIL)) return Expr.Literal(null)
 
-        if (match(TokenType.NUMBER, TokenType.STRING)) {
+        if (match(NUMBER, STRING)) {
             return Expr.Literal(previous().literal)
         }
 
-        if (match(TokenType.LEFT_PAREN)) {
+        if (match(IDENTIFIER)) {
+            return Expr.Variable(previous())
+        }
+
+        if (match(LEFT_PAREN)) {
             val expr = expression()
-            consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
+            consume(RIGHT_PAREN, "Expect ')' after expression.")
             return Expr.Grouping(expr)
         }
         throw error(peek(), "Expect expression.")
@@ -141,13 +214,12 @@ class Parser(private val tokens: List<Token>) {
         advance()
 
         while (!isAtEnd()) {
-            if (previous().type === TokenType.SEMICOLON) return
+            if (previous().type === SEMICOLON) return
 
             when (peek().type) {
-                TokenType.CLASS, TokenType.FUN, TokenType.VAR, TokenType.FOR, TokenType.IF, TokenType.WHILE, TokenType.PRINT, TokenType.RETURN -> return
+                CLASS, FUN, VAR, FOR, IF, WHILE, PRINT, RETURN -> return
+                else -> advance()
             }
-
-            advance()
         }
     }
 }
