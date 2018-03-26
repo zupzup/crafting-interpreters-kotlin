@@ -6,11 +6,11 @@ abstract class Stmt {
 //        fun visitClassStmt(stmt: Class): R
         fun visitExpressionStmt(stmt: Expression): R
 //        fun visitFunctionStmt(stmt: Function): R
-//        fun visitIfStmt(stmt: If): R
+        fun visitIfStmt(stmt: If): R
         fun visitPrintStmt(stmt: Print): R
 //        fun visitReturnStmt(stmt: Return): R
         fun visitVarStmt(stmt: Var): R
-//        fun visitWhileStmt(stmt: While): R
+        fun visitWhileStmt(stmt: While): R
     }
     
     class Block(val statements: List<Stmt?>) : Stmt() {
@@ -18,7 +18,7 @@ abstract class Stmt {
             return visitor.visitBlockStmt(this)
         }
     }
-//
+
 //    class Class(val name: Token, val superclass: Expr, val methods: List<Stmt.Function>) : Stmt() {
 //
 //        override fun <R> accept(visitor: Visitor<R>): R {
@@ -38,13 +38,12 @@ abstract class Stmt {
 //            return visitor.visitFunctionStmt(this)
 //        }
 //    }
-//
-//    class If(val condition: Expr, val thenBranch: Stmt, val elseBranch: Stmt) : Stmt() {
-//
-//        override fun <R> accept(visitor: Visitor<R>): R {
-//            return visitor.visitIfStmt(this)
-//        }
-//    }
+
+    class If(val condition: Expr, val thenBranch: Stmt, val elseBranch: Stmt?) : Stmt() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitIfStmt(this)
+        }
+    }
 
     class Print(val expression: Expr) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {
@@ -64,13 +63,12 @@ abstract class Stmt {
             return visitor.visitVarStmt(this)
         }
     }
-//
-//    class While(val condition: Expr, val body: Stmt) : Stmt() {
-//
-//        override fun <R> accept(visitor: Visitor<R>): R {
-//            return visitor.visitWhileStmt(this)
-//        }
-//    }
+
+    class While(val condition: Expr, val body: Stmt) : Stmt() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitWhileStmt(this)
+        }
+    }
 
     abstract fun <R> accept(visitor: Visitor<R>): R
 }

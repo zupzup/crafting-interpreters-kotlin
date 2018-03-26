@@ -8,7 +8,7 @@ abstract class Expr {
 //        fun visitGetExpr(expr: Get): R
         fun visitGroupingExpr(expr: Grouping): R
         fun visitLiteralExpr(expr: Literal): R
-//        fun visitLogicalExpr(expr: Logical): R
+        fun visitLogicalExpr(expr: Logical): R
 //        fun visitSetExpr(expr: Set): R
 //        fun visitSuperExpr(expr: Super): R
 //        fun visitThisExpr(expr: This): R
@@ -52,24 +52,24 @@ abstract class Expr {
         }
     }
 
-//    class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr() {
-//        override fun <R> accept(visitor: Visitor<R>): R {
-//            return visitor.visitLogicalExpr(this)
-//        }
-//    }
+    class Logical(val left: Expr, val operator: Token, val right: Expr) : Expr() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitLogicalExpr(this)
+        }
+    }
 
 //    class Set(val `object`: Expr, val name: Token, val value: Expr) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitSetExpr(this)
 //        }
 //    }
-//
+
 //    class Super(val keyword: Token, val method: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitSuperExpr(this)
 //        }
 //    }
-//
+
 //    class This(val keyword: Token) : Expr() {
 //        override fun <R> accept(visitor: Visitor<R>): R {
 //            return visitor.visitThisExpr(this)
