@@ -44,6 +44,7 @@ class LoxFunction(
 
 class LoxClass(
         val name: String,
+        private val superclass: LoxClass?,
         private val methods: Map<String, LoxFunction>
 ) : LoxCallable {
 
@@ -64,9 +65,13 @@ class LoxClass(
     }
 
     fun findMethod(instance: LoxInstance, name: String): LoxFunction? {
-        return if (methods.containsKey(name)) {
+        if (methods.containsKey(name)) {
             return methods[name]?.bind(instance)
-        } else null
+        }
+        if (superclass != null) {
+            return superclass.findMethod(instance, name)
+        }
+        return null
     }
 }
 

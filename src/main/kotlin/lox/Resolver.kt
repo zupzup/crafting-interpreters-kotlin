@@ -12,13 +12,24 @@ private enum class FunctionType {
 
 private enum class ClassType {
     NONE,
-    CLASS
+    CLASS,
+    SUBCLASS
 }
 
 internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
     private var currentClass = ClassType.NONE
     private val scopes = Stack<MutableMap<String, Boolean>>()
     private var currentFunction = FunctionType.NONE
+
+    override fun visitSuperExpr(expr: Expr.Super) {
+        if (currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Cannot use 'super' outside of a class.")
+        } else if (currentClass != ClassType.SUBCLASS) {
+            Lox.error(expr.keyword, "Cannot use 'super' in a class with no superclass.")
+        }
+        resolveLocal(expr, expr.keyword)
+        return
+    }
 
     override fun visitThisExpr(expr: Expr.This) {
         if (currentClass == ClassType.NONE) {
@@ -40,16 +51,23 @@ internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Uni
         define(stmt.name)
         val enclosingClass = currentClass
         currentClass = ClassType.CLASS
+        if (stmt.superclass != null) {
+            currentClass = ClassType.SUBCLASS
+            beginScope()
+            scopes.peek()["super"] = true
+            resolve(stmt.superclass)
+        }
         beginScope()
         scopes.peek()["this"] = true
         for (method in stmt.methods) {
             var declaration = FunctionType.METHOD
-            if (method.name.lexeme.equals("init")) {
+            if (method.name.lexeme == "init") {
                 declaration = FunctionType.INITIALIZER
             }
             resolveFunction(method, declaration)
         }
         endScope()
+        if (stmt.superclass != null) endScope()
         currentClass = enclosingClass
         return
     }
@@ -187,7 +205,7 @@ internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Uni
         }
         if (stmt.value != null) {
             if (currentFunction == FunctionType.INITIALIZER) {
-                Lox.error(stmt.keyword, "Cannot return a value from an initializer.");
+                Lox.error(stmt.keyword, "Cannot return a value from an initializer.")
             }
             resolve(stmt.value)
         }

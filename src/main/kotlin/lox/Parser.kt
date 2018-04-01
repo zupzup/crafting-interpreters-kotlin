@@ -35,13 +35,18 @@ class Parser(private val tokens: List<Token>) {
 
     private fun classDeclaration(): Stmt {
         val name = consume(IDENTIFIER, "Expect class name.")
+        var superclass: Expr? = null
+        if (match(LESS)) {
+            consume(IDENTIFIER, "Expect superclass name.")
+            superclass = Expr.Variable(previous())
+        }
         consume(LEFT_BRACE, "Expect '{' before class body.")
         val methods = ArrayList<Stmt.Function>()
         while (!check(RIGHT_BRACE) && !isAtEnd()) {
             methods.add(function("method"))
         }
         consume(RIGHT_BRACE, "Expect '}' after class body.")
-        return Stmt.Class(name, methods)
+        return Stmt.Class(name, superclass, methods)
     }
 
     private fun function(kind: String): Stmt.Function {
@@ -311,11 +316,11 @@ class Parser(private val tokens: List<Token>) {
     private fun call(): Expr {
         var expr = primary()
         while (true) {
-            if (match(LEFT_PAREN)) {
-                expr = finishCall(expr)
+            expr = if (match(LEFT_PAREN)) {
+                finishCall(expr)
             } else if (match(DOT)) {
                 val name = consume(IDENTIFIER, "Expect property name after '.'.")
-                expr = Expr.Get(expr, name)
+                Expr.Get(expr, name)
             } else {
                 break
             }
@@ -344,6 +349,14 @@ class Parser(private val tokens: List<Token>) {
 
         if (match(NUMBER, STRING)) {
             return Expr.Literal(previous().literal)
+        }
+
+        if (match(SUPER)) {
+            val keyword = previous()
+            consume(DOT, "Expect '.' after 'super'.")
+            val method = consume(IDENTIFIER,
+                    "Expect superclass method name.")
+            return Expr.Super(keyword, method)
         }
 
         if (match(THIS)) return Expr.This(previous())
