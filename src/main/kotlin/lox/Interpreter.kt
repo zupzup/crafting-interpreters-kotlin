@@ -6,44 +6,10 @@ import java.util.HashMap
 
 class RuntimeError(val token: Token, message: String) : RuntimeException(message)
 
-internal class Return(val value: Any?) : RuntimeException(null, null, false, false)
-
-internal interface LoxCallable {
-    fun arity(): Int
-    fun call(interpreter: Interpreter, arguments: List<Any?>): Any?
-}
-
-internal class LoxFunction(
-        private val declaration: Stmt.Function,
-        private val closure: Environment? = null
-) : LoxCallable {
-    override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
-        val environment = Environment(closure)
-        for (i in 0 until declaration.parameters.size) {
-            environment.define(declaration.parameters[i].lexeme,
-                    arguments[i])
-        }
-
-        try {
-            interpreter.executeBlock(declaration.body, environment)
-        } catch (returnValue: Return) {
-            return returnValue.value
-        }
-
-        return null
-    }
-
-    override fun arity(): Int {
-        return declaration.parameters.size
-    }
-
-    override fun toString(): String {
-        return "<fn " + declaration.name.lexeme + ">"
-    }
-}
+class Return(val value: Any?) : RuntimeException(null, null, false, false)
 
 class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
-    val globals = Environment(null)
+    private val globals = Environment(null)
     private var environment = globals
     private val locals = HashMap<Expr, Int>()
 
@@ -52,6 +18,7 @@ class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
             override fun arity(): Int {
                 return 0
             }
+
             override fun call(interpreter: Interpreter,
                               arguments: List<Any?>): Any {
                 return System.currentTimeMillis().toDouble() / 1000.0
@@ -77,6 +44,37 @@ class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
         locals[expr] = depth
     }
 
+    override fun visitThisExpr(expr: Expr.This): Any? {
+        return lookUpVariable(expr.keyword, expr)
+    }
+
+    override fun visitSetExpr(expr: Expr.Set): Any? {
+        val obj = evaluate(expr.obj) as? LoxInstance ?: throw RuntimeError(expr.name, "Only instances have fields.")
+        val value = evaluate(expr.value)
+        obj.set(expr.name, value)
+        return value
+    }
+
+    override fun visitGetExpr(expr: Expr.Get): Any? {
+        val obj = evaluate(expr.obj)
+        if (obj is LoxInstance) {
+            return obj.get(expr.name)
+        }
+        throw RuntimeError(expr.name, "Only instances have properties.")
+    }
+
+    override fun visitClassStmt(stmt: Stmt.Class) {
+        environment.define(stmt.name.lexeme, null)
+        val methods = HashMap<String, LoxFunction>()
+        for (method in stmt.methods) {
+            val function = LoxFunction(method, environment, method.name.lexeme.equals("init"))
+            methods[method.name.lexeme] = function
+        }
+        val klass = LoxClass(stmt.name.lexeme, methods)
+        environment.assign(stmt.name, klass)
+        return
+    }
+
     override fun visitReturnStmt(stmt: Stmt.Return) {
         var value: Any? = null
         if (stmt.value != null) value = evaluate(stmt.value)
@@ -85,7 +83,7 @@ class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
     }
 
     override fun visitFunctionStmt(stmt: Stmt.Function) {
-        val function = LoxFunction(stmt, environment)
+        val function = LoxFunction(stmt, environment, false)
         environment.define(stmt.name.lexeme, function)
         return
     }

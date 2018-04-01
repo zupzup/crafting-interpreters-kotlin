@@ -22,6 +22,7 @@ class Parser(private val tokens: List<Token>) {
     private fun declaration(): Stmt? {
         return try {
             when {
+                match(CLASS) -> classDeclaration()
                 match(FUN) -> function("function")
                 match(VAR) -> varDeclaration()
                 else -> statement()
@@ -30,6 +31,17 @@ class Parser(private val tokens: List<Token>) {
             synchronize()
             null
         }
+    }
+
+    private fun classDeclaration(): Stmt {
+        val name = consume(IDENTIFIER, "Expect class name.")
+        consume(LEFT_BRACE, "Expect '{' before class body.")
+        val methods = ArrayList<Stmt.Function>()
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            methods.add(function("method"))
+        }
+        consume(RIGHT_BRACE, "Expect '}' after class body.")
+        return Stmt.Class(name, methods)
     }
 
     private fun function(kind: String): Stmt.Function {
@@ -174,6 +186,8 @@ class Parser(private val tokens: List<Token>) {
             if (expr is Expr.Variable) {
                 val name = expr.name
                 return Expr.Assign(name, value)
+            } else if (expr is Expr.Get) {
+                return Expr.Set(expr.obj, expr.name, value)
             }
             error(equals, "Invalid assignment target.")
         }
@@ -299,6 +313,9 @@ class Parser(private val tokens: List<Token>) {
         while (true) {
             if (match(LEFT_PAREN)) {
                 expr = finishCall(expr)
+            } else if (match(DOT)) {
+                val name = consume(IDENTIFIER, "Expect property name after '.'.")
+                expr = Expr.Get(expr, name)
             } else {
                 break
             }
@@ -328,6 +345,8 @@ class Parser(private val tokens: List<Token>) {
         if (match(NUMBER, STRING)) {
             return Expr.Literal(previous().literal)
         }
+
+        if (match(THIS)) return Expr.This(previous())
 
         if (match(IDENTIFIER)) {
             return Expr.Variable(previous())

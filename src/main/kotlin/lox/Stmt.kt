@@ -3,7 +3,7 @@ package lox
 abstract class Stmt {
     interface Visitor<out R> {
         fun visitBlockStmt(stmt: Block): R
-//        fun visitClassStmt(stmt: Class): R
+        fun visitClassStmt(stmt: Class): R
         fun visitExpressionStmt(stmt: Expression): R
         fun visitFunctionStmt(stmt: Function): R
         fun visitIfStmt(stmt: If): R
@@ -19,12 +19,11 @@ abstract class Stmt {
         }
     }
 
-//    class Class(val name: Token, val superclass: Expr, val methods: List<Stmt.Function>) : Stmt() {
-//
-//        override fun <R> accept(visitor: Visitor<R>): R {
-//            return visitor.visitClassStmt(this)
-//        }
-//    }
+    class Class(val name: Token, val methods: List<Stmt.Function>) : Stmt() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitClassStmt(this)
+        }
+    }
 
     class Expression(val expression: Expr) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {

@@ -5,12 +5,59 @@ import java.util.Stack
 
 private enum class FunctionType {
     NONE,
-    FUNCTION
+    FUNCTION,
+    METHOD,
+    INITIALIZER
+}
+
+private enum class ClassType {
+    NONE,
+    CLASS
 }
 
 internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+    private var currentClass = ClassType.NONE
     private val scopes = Stack<MutableMap<String, Boolean>>()
     private var currentFunction = FunctionType.NONE
+
+    override fun visitThisExpr(expr: Expr.This) {
+        if (currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Cannot use 'this' outside of a class.")
+            return
+        }
+        resolveLocal(expr, expr.keyword)
+        return
+    }
+
+    override fun visitSetExpr(expr: Expr.Set) {
+        resolve(expr.value)
+        resolve(expr.obj)
+        return
+    }
+
+    override fun visitClassStmt(stmt: Stmt.Class) {
+        declare(stmt.name)
+        define(stmt.name)
+        val enclosingClass = currentClass
+        currentClass = ClassType.CLASS
+        beginScope()
+        scopes.peek()["this"] = true
+        for (method in stmt.methods) {
+            var declaration = FunctionType.METHOD
+            if (method.name.lexeme.equals("init")) {
+                declaration = FunctionType.INITIALIZER
+            }
+            resolveFunction(method, declaration)
+        }
+        endScope()
+        currentClass = enclosingClass
+        return
+    }
+
+    override fun visitGetExpr(expr: Expr.Get) {
+        resolve(expr.obj)
+        return
+    }
 
     override fun visitAssignExpr(expr: Expr.Assign) {
         resolve(expr.value)
@@ -54,7 +101,7 @@ internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Uni
 
     override fun visitVariableExpr(expr: Expr.Variable) {
         if (!scopes.isEmpty() &&
-                scopes.peek().get(expr.name.lexeme) == false) {
+                scopes.peek()[expr.name.lexeme] == false) {
             Lox.error(expr.name,
                     "Cannot read local variable in its own initializer.")
         }
@@ -105,7 +152,7 @@ internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Uni
     override fun visitFunctionStmt(stmt: Stmt.Function) {
         declare(stmt.name)
         define(stmt.name)
-        resolveFunction(stmt, FunctionType.FUNCTION);
+        resolveFunction(stmt, FunctionType.FUNCTION)
         return
     }
 
@@ -136,9 +183,12 @@ internal class Resolver(private val interpreter: Interpreter) : Expr.Visitor<Uni
 
     override fun visitReturnStmt(stmt: Stmt.Return) {
         if (currentFunction == FunctionType.NONE) {
-            Lox.error(stmt.keyword, "Cannot return from top-level code.");
+            Lox.error(stmt.keyword, "Cannot return from top-level code.")
         }
         if (stmt.value != null) {
+            if (currentFunction == FunctionType.INITIALIZER) {
+                Lox.error(stmt.keyword, "Cannot return a value from an initializer.");
+            }
             resolve(stmt.value)
         }
         return
