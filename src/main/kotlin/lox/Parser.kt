@@ -4,7 +4,6 @@ import lox.TokenType.*
 import java.util.ArrayList
 import java.util.Arrays
 
-
 class Parser(private val tokens: List<Token>) {
 
     private class ParseError : RuntimeException()
@@ -22,11 +21,33 @@ class Parser(private val tokens: List<Token>) {
 
     private fun declaration(): Stmt? {
         return try {
-            if (match(VAR)) varDeclaration() else statement()
+            when {
+                match(FUN) -> function("function")
+                match(VAR) -> varDeclaration()
+                else -> statement()
+            }
         } catch (error: ParseError) {
             synchronize()
             null
         }
+    }
+
+    private fun function(kind: String): Stmt.Function {
+        val name = consume(IDENTIFIER, "Expect $kind name.")
+        consume(LEFT_PAREN, "Expect '(' after $kind name.")
+        val parameters = ArrayList<Token>()
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (parameters.size >= 8) {
+                    error(peek(), "Cannot have more than 8 parameters.")
+                }
+                parameters.add(consume(IDENTIFIER, "Expect parameter name."))
+            } while (match(COMMA))
+        }
+        consume(RIGHT_PAREN, "Expect ')' after parameters.")
+        consume(LEFT_BRACE, "Expect '{' before $kind body.")
+        val body = block()
+        return Stmt.Function(name, parameters, body)
     }
 
     private fun varDeclaration(): Stmt {
@@ -43,23 +64,31 @@ class Parser(private val tokens: List<Token>) {
         return when {
             match(FOR) -> forStatement()
             match(IF) -> ifStatement()
-            match(WHILE) -> whileStatement()
             match(PRINT) -> printStatement()
+            match(RETURN) -> returnStatement()
+            match(WHILE) -> whileStatement()
             match(LEFT_BRACE) -> Stmt.Block(block())
             else -> expressionStatement()
         }
     }
 
+    private fun returnStatement(): Stmt {
+        val keyword = previous()
+        var value: Expr? = null
+        if (!check(SEMICOLON)) {
+            value = expression()
+        }
+        consume(SEMICOLON, "Expect ';' after return value.")
+        return Stmt.Return(keyword, value)
+    }
+
     private fun forStatement(): Stmt {
         consume(LEFT_PAREN, "Expect '(' after 'for'.")
 
-        val initializer: Stmt?
-        if (match(SEMICOLON)) {
-            initializer = null
-        } else if (match(VAR)) {
-            initializer = varDeclaration()
-        } else {
-            initializer = expressionStatement()
+        val initializer: Stmt? = when {
+            match(SEMICOLON) -> null
+            match(VAR) -> varDeclaration()
+            else -> expressionStatement()
         }
 
         var condition: Expr? = null
@@ -262,7 +291,33 @@ class Parser(private val tokens: List<Token>) {
             return Expr.Unary(operator, right)
         }
 
-        return primary()
+        return call()
+    }
+
+    private fun call(): Expr {
+        var expr = primary()
+        while (true) {
+            if (match(LEFT_PAREN)) {
+                expr = finishCall(expr)
+            } else {
+                break
+            }
+        }
+        return expr
+    }
+
+    private fun finishCall(callee: Expr): Expr {
+        val arguments = ArrayList<Expr>()
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (arguments.size >= 8) {
+                    error(peek(), "Cannot have more than 8 arguments.")
+                }
+                arguments.add(expression())
+            } while (match(COMMA))
+        }
+        val paren = consume(RIGHT_PAREN, "Expect ')' after arguments.")
+        return Expr.Call(callee, paren, arguments)
     }
 
     private fun primary(): Expr {

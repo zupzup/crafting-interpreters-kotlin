@@ -1,11 +1,64 @@
 package lox
 
 import lox.TokenType.*
+import java.util.ArrayList
+import com.sun.org.apache.xalan.internal.lib.ExsltDynamic.closure
+
+
 
 class RuntimeError(val token: Token, message: String) : RuntimeException(message)
 
+internal class Return(val value: Any?) : RuntimeException(null, null, false, false)
+
+internal interface LoxCallable {
+    fun arity(): Int
+    fun call(interpreter: Interpreter, arguments: List<Any?>): Any?
+}
+
+internal class LoxFunction(
+        private val declaration: Stmt.Function,
+        private val closure: Environment? = null
+) : LoxCallable {
+    override fun call(interpreter: Interpreter, arguments: List<Any?>): Any? {
+        val environment = Environment(closure)
+        for (i in 0 until declaration.parameters.size) {
+            environment.define(declaration.parameters[i].lexeme,
+                    arguments[i])
+        }
+
+        try {
+            interpreter.executeBlock(declaration.body, environment)
+        } catch (returnValue: Return) {
+            return returnValue.value
+        }
+
+        return null
+    }
+
+    override fun arity(): Int {
+        return declaration.parameters.size
+    }
+
+    override fun toString(): String {
+        return "<fn " + declaration.name.lexeme + ">"
+    }
+}
+
 class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
-    private var environment = Environment(null)
+    val globals = Environment(null)
+    private var environment = globals
+
+    init {
+        globals.define("clock", object : LoxCallable {
+            override fun arity(): Int {
+                return 0
+            }
+            override fun call(interpreter: Interpreter,
+                              arguments: List<Any?>): Any {
+                return System.currentTimeMillis().toDouble() / 1000.0
+            }
+        })
+    }
 
     fun interpret(statements: List<Stmt?>) {
         try {
@@ -15,16 +68,46 @@ class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
         } catch (error: RuntimeError) {
             Lox.runtimeError(error)
         }
-
     }
 
     private fun execute(stmt: Stmt?) {
         stmt!!.accept(this)
     }
 
+    override fun visitReturnStmt(stmt: Stmt.Return) {
+        var value: Any? = null
+        if (stmt.value != null) value = evaluate(stmt.value)
+
+        throw Return(value)
+    }
+
+    override fun visitFunctionStmt(stmt: Stmt.Function) {
+        val function = LoxFunction(stmt, environment)
+        environment.define(stmt.name.lexeme, function)
+        return
+    }
+
+    override fun visitCallExpr(expr: Expr.Call): Any? {
+        val callee = evaluate(expr.callee)
+        val arguments = ArrayList<Any?>()
+        for (argument in expr.arguments) {
+            arguments.add(evaluate(argument))
+        }
+        if (callee !is LoxCallable) {
+            throw RuntimeError(expr.paren,
+                    "Can only call functions and classes.")
+        }
+        if (arguments.size != callee.arity()) {
+            throw RuntimeError(expr.paren, "Expected " +
+                    callee.arity() + " arguments but got " +
+                    arguments.size + ".")
+        }
+        return callee.call(this, arguments)
+    }
+
     override fun visitWhileStmt(stmt: Stmt.While) {
         while (isTruthy(evaluate(stmt.condition))) {
-            execute(stmt.body);
+            execute(stmt.body)
         }
         return
     }
@@ -55,7 +138,7 @@ class Interpreter : Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
         return
     }
 
-    private fun executeBlock(statements: List<Stmt?>, environment: Environment) {
+    fun executeBlock(statements: List<Stmt?>, environment: Environment) {
         val previous = this.environment
         try {
             this.environment = environment
